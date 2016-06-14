@@ -4,6 +4,8 @@
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @flow
  */
 'use strict';
 
@@ -12,10 +14,16 @@ const SnapshotFile = require('./SnapshotFile');
 const fs = require('fs');
 const path = require('path');
 
+import type {Jasmine} from 'types/Jasmine';
+import type {Path} from 'types/Config';
+import type {SnapshotState} from './SnapshotState';
+
+type Context = Object;
+
 const EXTENSION = SnapshotFile.SNAPSHOT_EXTENSION;
-const patchAttr = (attr, state) => {
-  attr.onStart = function(onStart) {
-    return function(context) {
+const patchAttr = (attr, state: SnapshotState): void => {
+  attr.onStart = function(onStart: Function): (context: Context) => void {
+    return function(context: Context): void {
       const specRunning = context.getFullName();
       let index = 0;
       state.getCounter = () => index;
@@ -28,7 +36,7 @@ const patchAttr = (attr, state) => {
   }(attr.onStart);
 };
 
-const patchJasmine = (jasmine, state) => {
+const patchJasmine = (jasmine: Jasmine, state: Object): void => {
   jasmine.Spec = (realSpec => {
     const Spec = function Spec(attr) {
       patchAttr(attr, state);
@@ -44,7 +52,7 @@ const patchJasmine = (jasmine, state) => {
   })(jasmine.Spec);
 };
 
-const fileExists = filePath => {
+const fileExists = (filePath: Path): boolean => {
   try {
     return fs.statSync(filePath).isFile();
   } catch (e) {}
@@ -53,7 +61,7 @@ const fileExists = filePath => {
 
 module.exports = {
   EXTENSION,
-  cleanup(hasteMap, update) {
+  cleanup(hasteMap: Object, update: boolean): Promise<{filesRemoved: number}> {
     const extension = new RegExp('\\.' + EXTENSION);
     return hasteMap.instance.matchFiles(extension).then(files => {
       const filesRemoved = files
@@ -71,11 +79,12 @@ module.exports = {
     });
   },
   getMatchers: require('./getMatchers'),
-  getSnapshotState: (jasmine, filePath) => {
-    const state = Object.create(null);
-    state.currentSpecName = null;
-    state.getCounter = null;
-    state.incrementCounter = null;
+  getSnapshotState: (jasmine: Jasmine, filePath: Path): SnapshotState => {
+    const state = Object.create({});
+
+    state.currentSpecName = '';
+    state.getCounter = () => 0;
+    state.incrementCounter = () => 0;
     state.snapshot = SnapshotFile.forFile(filePath);
     state.added = 0;
     state.updated = 0;
